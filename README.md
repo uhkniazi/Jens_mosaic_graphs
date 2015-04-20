@@ -16,3 +16,11 @@ Remove low observed to expected probabilities (this parameter can be changed whe
 Create a second graph based on the correlations of the genes, and select an appropriate cutoff for the edge criteria
 (i.e. a correlation of e.g. -0.7 to 0.7 is removed). Intersect the 2 graphs to get a smaller sized graph for further
 analysis.
+
+# 02_dataset_2.R
+The analysis is very similar to the previous script with a few differences. The cutoffs for the reactome term distribution
+is done on the negative binomial rather than poisson distribution. The observed to expected ratio distribution appears to 
+follow a power law and taking a square root of that and fit a poisson and negative binomial distribution on top - so this
+second cutoff is important as previously it was done on the 75% quantile, but not we do it by fitting a distribution on top.
+Look at TAG 1, and choose the type of correlation graph desired: i.e. comparisons of flu pos vs flu neg or healthy etc.
+
