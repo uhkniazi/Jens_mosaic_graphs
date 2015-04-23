@@ -1,4 +1,4 @@
-#NAME: 02_dataset_2.R
+#NAME: cluster_test.R
 #DESC: input the gene lists from the csv file and create reactome based graph
 #AUTH: u.niazi@imperial.ac.uk
 #Date: 31/03/2015
@@ -8,12 +8,15 @@ source('~/Dropbox/Home/Data/R/My_Libraries/NGS_functions.R')
 source('~/Dropbox/Home/Data/R/My_Libraries/CGraph.R')
 source('~/Dropbox/Home/Data/R/My_Libraries/CGeneAnnotation.R')
 library(igraph)
+library(RColorBrewer)
 
 # databases 
 library(org.Hs.eg.db)
 library(GO.db)
 library(reactome.db)
+#library(KEGG.db)
 
+p.old = par()
 ## data loading and formatting
 dfDat = read.csv(file.choose(), header=T, stringsAsFactors=F)
 
@@ -92,7 +95,7 @@ for (i in 1:length(n)){
 obj = CGraph(oIGbp)
 # create a projection of the graph 
 oIGProj = CGraph.getProjectedGraph(obj)
-rm(obj)
+#rm(obj)
 
 ## some genes are orphans as they don't share reactome terms with others, remove those
 d = degree(oIGProj)
@@ -101,6 +104,7 @@ oIGProj = delete.vertices(oIGProj, which(d == 0))
 ## house keeping
 # show overexpressed genes as circle and underexpressed as square
 V(oIGProj)$shape = ifelse(V(oIGProj)$logFC > 0, 'circle', 'square')
+V(oIGProj)$color = ifelse(V(oIGProj)$logFC > 0, 'red', 'blue')
 # need this for later plotting using cytoscape to use as a node size parameter
 V(oIGProj)$logFC_abs = abs(V(oIGProj)$logFC)
 
@@ -114,14 +118,15 @@ w = E(oIGProj)$weight
 # it appears that the distribution follows a power law?
 # taking square root means we can fit a poisson distribution
 w2 = sqrt(w)
-r = round(range(w2))
-s = seq(r[1]-0.5, r[2]+0.5, by = 1)
+r = range(w2)
+s = seq(floor(r[1])-0.5, ceiling(r[2])+0.5, by = 1)
 hist(w2, prob=T, breaks=s, main='distribution of obs to exp ratios', 
      xlab='square root obs to exp ratio', ylab='')
+r = round(r)
 dp = dpois(r[1]:r[2], lambda = median(w2))
 dn = dnbinom(r[1]:r[2], size = median(w2), mu = median(w2))
-lines(r[1]:r[2], dp, col='red')
-lines(r[1]:r[2], dn, col='blue')
+lines(r[1]:r[2], dp, col='red', type='b')
+lines(r[1]:r[2], dn, col='blue', type='b')
 legend('topright', legend = c('poi', 'nbin'), fill = c('red', 'blue'))
 
 
@@ -149,6 +154,50 @@ c = grep('Flu\\.Pos|Flu\\.Neg', c)
 dfCounts.fp = dfCounts[,c]
 
 mCounts = t(dfCounts.fp)
+mDist = as.matrix(dist(t(mCounts)))
+# create graph of this matrix 
+oIGdist = graph.adjacency(mDist, mode='min', weighted=T)
+# remove gene connections that are farther apart form each other
+w = E(oIGdist)$weight
+summary(w)
+par(p.old)
+hist(w)
+# choose a cutoff by modelling the distribution shape
+# it appears that the distribution follows a power law?
+# taking square root means we can fit a poisson distribution
+w2 = sqrt(w)
+r = range(w2)
+s = seq(floor(r[1])-0.5, ceiling(r[2])+0.5, by = 1)
+hist(w2, prob=T, breaks=s, main='distribution of eucledian distances', 
+     xlab='square root of distances', ylab='')
+r = round(r)
+dp = dpois(r[1]:r[2], lambda = median(w2))
+dn = dnbinom(r[1]:r[2], size = median(w2), mu = median(w2))
+lines(r[1]:r[2], dp, col='red', type='b')
+lines(r[1]:r[2], dn, col='blue', type='b')
+legend('topright', legend = c('poi', 'nbin'), fill = c('red', 'blue'))
+
+# NOTE: this cutoff can be changed, the lower it is the less edges in the graph
+# use poisson/negative binomial to choose cutoff
+#c = qnbinom(0.05, size = median(w2), mu=median(w2), lower.tail = F)
+c = qpois(0.05, median(w2), lower.tail = F)
+f = which(w2 >= c)
+oIGdist = delete.edges(oIGdist, edges = f)
+# get the distance matrix again / adjacency matrix
+mDist = as.matrix(get.adjacency(oIGdist, 'both', attr = 'weight', names = T))
+# invert the weights, things that are farthest will have the smallest number
+# others that are closest to each other will have the most remaining behind
+# e.g. 10 - 5 = 5 no change in weight
+# 10 - 8 = 2 as these 2 are far away, they will have a weight of 2 remaining etc
+mDist = max(mDist) - mDist
+# no connections or weights on diagonals
+diag(mDist) = 0  
+# create the graph of distances/correlations
+oIGdist = graph.adjacency(mDist, mode='min', weighted=T)
+E(oIGdist)$distance = E(oIGdist)$weight
+
+## use correlation matrix to create graph
+mCounts = t(dfCounts.fp)
 mCor = cor(mCounts)
 diag(mCor) = 0
 
@@ -160,28 +209,32 @@ par(p.old)
 hist(c)
 summary(c)
 E(oIGcor)$cor = E(oIGcor)$weight
-t = abs(c)
-hist(t, prob=T)
-# the correlation looks fairly normal
-dn = dnorm(seq(0, 1, 0.01), mean(t), sd(t))
-lines(seq(0, 1, 0.01), dn)
-summary(t)
-dn = dnorm(seq(0, 1, 0.01), median(t), mad(t))
-lines(seq(0, 1, 0.01), dn, col='red')
-# choose appropriate cutoff based on data
-f = which((c >= -0.5 & c <= 0.5))
-# if we need genes that are not correlated
-f = which((c <= -0.5 | c >= 0.5))
+# t = abs(c)
+# hist(t, prob=T)
+# # the correlation looks fairly normal
+# dn = dnorm(seq(0, 1, 0.01), mean(t), sd(t))
+# lines(seq(0, 1, 0.01), dn)
+# summary(t)
+# dn = dnorm(seq(0, 1, 0.01), median(t), mad(t))
+# lines(seq(0, 1, 0.01), dn, col='red')
+# # choose appropriate cutoff based on data
+# f = which((c >= -0.5 & c <= 0.5))
+# # if we need genes that are not correlated
+# f = which((c <= -0.5 | c >= 0.5))
+
+# keep only positively correlated genes connected
+f = which(c < 0.5)
 oIGcor = delete.edges(oIGcor, edges = f)
 
 ### graph intersection
-# intersect the 2 graphs
-l = list(oIGProj, oIGcor)
+# intersect the 3 graphs
+l = list(oIGProj, oIGcor, oIGdist)
 ig.1 = graph.intersection(l)
-E(ig.1)$weight = E(ig.1)$weight_1
+# set observed to expected ratio as weight
+E(ig.1)$weight = E(ig.1)$ob_to_ex
 # color the positive and negative edges differently
-col = ifelse(E(ig.1)$weight_2 < 0, 'red', 'black')
-E(ig.1)$color = col
+# col = ifelse(E(ig.1)$weight_2 < 0, 'red', 'black')
+# E(ig.1)$color = col
 
 par(mar=c(1,1,1,1))
 plot(ig.1, vertex.label=NA, vertex.size=1, layout=layout.fruchterman.reingold, vertex.frame.color=NA)
@@ -192,12 +245,39 @@ ig.2 = delete.vertices(ig.1, which(d == 0))
 par(mar=c(1,1,1,1))
 plot(ig.2, vertex.label=NA, vertex.size=1, layout=layout.fruchterman.reingold, vertex.frame.color=NA)
 
+# create communities in the graph
+com = edge.betweenness.community(ig.2)
+dend = as.dendrogram(com)
+# plot the heatmap of the communities
+col = brewer.pal(9, 'Greens')
+n = V(ig.2)$name
+mCounts.heat = t(mCounts[,colnames(mCounts) %in% n])
+par(p.old)
+heatmap(mCounts.heat, Rowv = dend, scale='row', col=col, labCol = NA, margins = c(0.5,0.5))
+
+# recreate the bipartite graph but only with nodes that are in our final graph
+oIGbp = CGraph.getBipartiteGraph(obj)
+# get the indices for the vertices of type 1
+f = V(oIGbp)$type
+n = V(oIGbp)[f]$name
+n2 = V(ig.2)$name
+i = !(n %in% n2)
+n = n[i]
+oIGbp = delete.vertices(oIGbp, v = n)
+d = degree(oIGbp)
+oIGbp = delete.vertices(oIGbp, which(d == 0))
+f = V(oIGbp)$type
+V(oIGbp)[f]$color = 'blue'
+V(oIGbp)[!f]$color = 'red'
+par(mar=c(1,1,1,1))
+plot(oIGbp, vertex.label=NA, vertex.size=1, layout=layout.fruchterman.reingold, vertex.frame.color=NA)
+
+
 ### save the graphs for analysis on cytoscape
 dir.create('Results',showWarnings = F)
 ## export the graphs for use in cytoscape
 write.graph(oIGProj, 'Results/ds_2_reactome_terms.graphml', format = 'graphml')
 write.graph(ig.2, 'Results/ds_2_decor_fp_vs_fn.graphml', format = 'graphml')
-
 
 
 
