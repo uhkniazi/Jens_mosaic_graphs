@@ -18,3 +18,4 @@ vignettes/*.pdf
 # directories to ignore
 Data_external/
 Results/
+Temp/
