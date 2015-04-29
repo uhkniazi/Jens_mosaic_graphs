@@ -291,6 +291,13 @@ dend$labels = rv.g
 dend = as.dendrogram(dend)
 heatmap(mCounts.heat.2, Rowv = dend, scale='row', col=col, cexRow = 0.1, cexCol = 0.3, Colv = NA)
 
+hc = getHclust(oGr)
+l = hc$labels
+l2 = getClusterLabels(oGr)
+m = mCounts[l,]
+
+
+
 # heatmap based on means of each community/cluster
 colnames(mCent) = colnames(mCounts.heat)
 hc.2 = hclust(dist(mCent), members = table(memb))#, method = 'cent')
