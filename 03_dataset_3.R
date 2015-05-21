@@ -62,13 +62,13 @@ mCor = cor(mCounts)
 hist(mCor)
 
 ## create the clustering graph
-oGr = CGraphClust(dfGraph, mCor)#, iCorCut = 0.7)
+oGr = CGraphClust(dfGraph, abs(mCor))#, iCorCut = 0.7)
 
 ## plot heatmap of the community and 
 rownames(mCounts) = gsub('\\w(\\d).*', '\\1', rownames(mCounts))
 plot.heatmap(oGr, t(mCounts))
 plot.heatmap.means(oGr, t(mCounts))
-
+plot.mean.expressions(oGr, t(mCounts), fGroups = fSamples, main='Mean expression in each cluster')
 ## ids for our genes of interest
 ig = getFinalGraph(oGr)
 n = V(ig)$name
@@ -104,6 +104,19 @@ plot(ig, vertex.label=NA, vertex.size=1, layout=layout.fruchterman.reingold, ver
 
 dir.create('Results',showWarnings = F)
 ## export the graphs for use in cytoscape
-write.graph(ig, 'Results/ds_3_pkm_stim.graphml', format = 'graphml')
+write.graph(ig, 'Results/ds_3_expressions.graphml', format = 'graphml')
+
+df = getClusterMapping(oGr)
+colnames(df) = c('gene', 'cluster')
+df = df[order(df$cluster),]
+write.csv(df, file='Results/ds_3_expressions_clusters.csv')
+
+pdf(file='Results/ds_3_expressions_clusters.pdf')
+plot(ig, vertex.label=NA, vertex.size=1, layout=layout.fruchterman.reingold, vertex.frame.color=NA)
+plot(getCommunity(oGr),ig, vertex.label=NA, vertex.size=1, layout=layout.fruchterman.reingold, vertex.frame.color=NA)
+plot.mean.expressions(oGr, t(mCounts), fGroups = fSamples, main='Mean expression in each cluster')
+dev.off(dev.cur())
+
+
 
 
