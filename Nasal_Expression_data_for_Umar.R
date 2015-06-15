@@ -49,7 +49,8 @@ hist(mCor, prob=T, main='correlation matrix')
 
 # order the count matrix according to sequence of samples
 c = rownames(mCounts)
-fSamples = gsub('(\\w+).*', '\\1', c)
+# fSamples = gsub('(\\w+).*', '\\1', c)
+fSamples = gsub('(\\w+)\\.\\d+[pre|_\\d+]', '\\1', c)
 mCounts = mCounts[order(fSamples),]
 fSamples = fSamples[order(fSamples)]
 rownames(mCounts) = fSamples
@@ -67,7 +68,7 @@ plot(ig, vertex.label=NA, vertex.size=2, layout=layout.fruchterman.reingold, ver
 #rownames(mCounts) = gsub('(\\w+).*', '\\1', rownames(mCounts))
 plot.heatmap(oGr, t(mCounts))
 plot.heatmap.means(oGr, t(mCounts))
-plot.mean.expressions(oGr, t(mCounts), fGroups = fSamples, main='Mean expression in each cluster', legend.pos = 'topright', lwd=2)
+plot.mean.expressions(oGr, t(mCounts), fGroups = fSamples, main='Mean expression in each cluster', legend.pos = 'topright', lwd=4)
 ## ids for our genes of interest
 ig = getFinalGraph(oGr)
 n = V(ig)$name
