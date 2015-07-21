@@ -52,13 +52,19 @@ mCounts = t(dfCounts)
 rownames(mCounts) = fGroups
 mCounts = mCounts[order(fGroups),]
 fGroups = fGroups[order(fGroups)]
+
+# try stabalizing the data before proceeding
+mCounts = t(mCounts)
+mCounts = t(apply(mCounts, 1, function(x) f_ivStabilizeData(x, fGroups)))
+colnames(mCounts) = fGroups
+mCounts = t(mCounts)
 # create correlation matrix
 mCor = cor(mCounts)
-hist(sample(mCor, 1000, replace = F), prob=T)
+hist(sample(mCor, 1000, replace = F), prob=T, xlab='', ylab='', main='Correlation of Genes')
 
 # create the graph cluster object
 # using absolute correlation vs actual values lead to different clusters
-oGr = CGraphClust(dfGraph, abs(mCor), iCorCut = 0.5)
+oGr = CGraphClust(dfGraph, abs(mCor), iCorCut = 0.6)
 #oGr = CGraphClust(dfGraph, (mCor), iCorCut = 0.7)
 
 # sample plots
@@ -67,20 +73,20 @@ plot.mean.expressions(oGr, t(mCounts), fGroups, legend.pos = 'topright')
 # only significant clusters
 plot.significant.expressions(oGr, t(mCounts), fGroups, lwd=2)
 # only one cluster
-plot.cluster.expressions(oGr, t(mCounts), fGroups, csClustLabel = '1430728', main='Metabolism - oxidation')
-plot.cluster.expressions(oGr, t(mCounts), fGroups, csClustLabel = '109582', main='Hemostasis')
-plot.cluster.expressions(oGr, t(mCounts), fGroups, csClustLabel = '168256', main='Immune System')
+plot.cluster.expressions(oGr, t(mCounts), fGroups, csClustLabel = '1430728', main='1430728 Metabolism - oxidation')
+plot.cluster.expressions(oGr, t(mCounts), fGroups, csClustLabel = '109582', main='109582 Hemostasis')
+plot.cluster.expressions(oGr, t(mCounts), fGroups, csClustLabel = '168256', main='168256 Immune System')
 # without data stabalization
 pr.out = plot.components(oGr, t(mCounts), fGroups, bStabalize = F)
-biplot(pr.out)
+biplot(pr.out, cex=0.6, arrow.len=0)
 
 # with some stabalization
 pr.out = plot.components(oGr, t(mCounts), fGroups, bStabalize = T)
-biplot(pr.out, cex = 0.7, arrow.len = 0)
+biplot(pr.out, cex = 0.5, arrow.len = 0)
 
 # graph properties
 n = getLargestCliques(oGr)
-n = names(unlist(n))
+n = unique(names(unlist(n)))
 f_dfGetGeneAnnotation(cvEnterezID = n)
 plot.graph.clique(obj = oGr)
 # final graph
@@ -97,5 +103,14 @@ f_dfGetGeneAnnotation(cvEnterezID = l)
 plot.heatmap.all(oGr, t(mCounts))
 plot.heatmap.means(oGr, t(mCounts))
 
+ig = getFinalGraph(oGr)
+par(mar=c(1,1,1,1)+0.1)
+plot(ig, vertex.label=NA, vertex.size=2, layout=layout_with_fr(ig, weights = E(ig)$ob_to_ex), vertex.frame.color=NA)
+plot(getCommunity(oGr), ig, vertex.label=NA, vertex.size=2, layout=layout.fruchterman.reingold, vertex.frame.color=NA)
+par(p.old)
 
+df = getClusterMapping(oGr)
+colnames(df) = c('gene', 'cluster')
+df = df[order(df$cluster),]
 
+write.csv(df, 'Temp/clusters.csv')
